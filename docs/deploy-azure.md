@@ -4,6 +4,8 @@ Steps 1–2 are done by the facilitator before the workshop.
 
 ## 1. Provision
 
+### Option A — Azure CLI
+
 ```bash
 az group create --name rg-astra-parts-hub --location southeastasia
 az appservice plan create --name asp-astra-parts-hub --resource-group rg-astra-parts-hub --sku B1 --is-linux
@@ -13,10 +15,35 @@ az webapp config appsettings set --resource-group rg-astra-parts-hub --name <uni
   --settings NODE_ENV=production APP_VERSION=1.1.0 DATABASE_FILE=/home/data/parts-hub.db
 ```
 
+### Option B — Azure Portal (GUI)
+
+1. Go to [portal.azure.com](https://portal.azure.com) → **Resource groups** → **Create**.
+   - Name: `rg-astra-parts-hub`
+   - Region: `Southeast Asia`
+   - Click **Review + create** → **Create**.
+2. In the new resource group, click **Create** → search **Web App** → **Create**.
+   - **Resource group:** `rg-astra-parts-hub`
+   - **Name:** `<unique-app-name>` (must be globally unique, becomes `<name>.azurewebsites.net`)
+   - **Publish:** Code
+   - **Runtime stack:** Node 24 LTS
+   - **Operating System:** Linux
+   - **Region:** Southeast Asia
+   - Under **App Service Plan**, click **Create new**, name it `asp-astra-parts-hub`, **Pricing plan:** `B1 (Basic)`.
+   - Click **Review + create** → **Create**. Wait for deployment to finish, then **Go to resource**.
+3. On the Web App page, open **Settings → Environment variables** (older portals: **Configuration → Application settings**).
+   - Click **Add** for each of the following, then **Apply**:
+     - `NODE_ENV` = `production`
+     - `APP_VERSION` = `1.1.0`
+     - `DATABASE_FILE` = `/home/data/parts-hub.db`
+   - Do **not** add `AUTH_DISABLED` — leave it unset in Azure.
+   - Click **Save** at the top, confirm the restart.
+
 `/home` is persistent on App Service, so the database survives restarts.
 Do **not** set `AUTH_DISABLED` in Azure.
 
 ## 2. Grant the workflow access (OIDC)
+
+### Option A — Azure CLI
 
 ```bash
 az ad sp create-for-rbac --name "gh-astra-parts-hub" --role contributor \
@@ -25,6 +52,29 @@ az ad sp create-for-rbac --name "gh-astra-parts-hub" --role contributor \
 
 Add a federated credential for the repository, then store `AZURE_CLIENT_ID`,
 `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` as repository secrets.
+
+### Option B — Azure Portal (GUI)
+
+1. **Create the App Registration (service principal):**
+   - Go to **Microsoft Entra ID** → **App registrations** → **New registration**.
+   - Name: `gh-astra-parts-hub`. Leave other defaults. Click **Register**.
+   - Copy the **Application (client) ID** and **Directory (tenant) ID** from the Overview page — these become `AZURE_CLIENT_ID` and `AZURE_TENANT_ID`.
+2. **Grant it Contributor on the resource group:**
+   - Go to the `rg-astra-parts-hub` resource group → **Access control (IAM)** → **Add** → **Add role assignment**.
+   - Role: `Contributor`.
+   - Members: select your app registration `gh-astra-parts-hub`.
+   - Click **Review + assign**.
+3. **Add a federated credential (so GitHub Actions can log in without a secret):**
+   - Back in the app registration → **Certificates & secrets** → **Federated credentials** tab → **Add credential**.
+   - Scenario: **GitHub Actions deploying Azure resources**.
+   - Organization: your GitHub org, Repository: this repo's name.
+   - Entity type: `Branch`, Branch name: `main` (add another credential with Entity type `Environment` → `production` if the workflow uses an `environment:`).
+   - Name it, e.g. `gh-main-branch`, then **Add**.
+4. **Get the subscription ID:**
+   - Go to **Subscriptions** in the portal, copy the **Subscription ID** — this is `AZURE_SUBSCRIPTION_ID`.
+5. **Store the secrets in GitHub:**
+   - Repo → **Settings → Secrets and variables → Actions → New repository secret**.
+   - Add `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` with the values collected above.
 
 ## 3. Deploy job (added to `.github/workflows/ci.yml` in the lab)
 
