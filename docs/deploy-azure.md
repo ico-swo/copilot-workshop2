@@ -79,6 +79,26 @@ Add a federated credential for the repository, then store `AZURE_CLIENT_ID`,
 ## 3. Deploy job (added to `.github/workflows/ci.yml` in the lab)
 
 ```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
   deploy:
     needs: build-and-test
     if: github.ref == 'refs/heads/main'
@@ -96,8 +116,9 @@ Add a federated credential for the repository, then store `AZURE_CLIENT_ID`,
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
       - uses: azure/webapps-deploy@v3
         with:
-          app-name: <unique-app-name>
+          app-name: astra-copilot-h0b6a4hac6dxapb9
           package: .
+
 ```
 
 ## 4. Seed once (App Service SSH console)
